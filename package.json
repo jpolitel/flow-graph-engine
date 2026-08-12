@@ -36,6 +36,9 @@
   "engines": {
     "node": ">=18"
   },
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "clean": "rimraf dist",
     "build": "npm run clean && npm run build:cjs && npm run build:esm && npm run build:types && node scripts/write-dist-manifests.mjs",
