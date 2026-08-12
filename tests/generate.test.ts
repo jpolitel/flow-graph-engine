@@ -32,9 +32,13 @@ describe('generateSequence — cas nominaux', () => {
   it('produit la chaîne complète quand elle correspond à la longueur demandée', () => {
     const graph = buildGraph(chain);
 
+    // Une seule solution existe, et il faut que le départ tombe sur c1. Le
+    // budget de tentatives est relevé pour que la probabilité d'échec soit
+    // négligeable plutôt que simplement faible.
     const result = generateSequence(graph, {
       knownNodeIds: allIds(chain),
       targetLength: 4,
+      maxAttempts: 300,
     });
 
     expect(result.sequence).toEqual(['c1', 'c2', 'c3', 'c4']);
@@ -104,9 +108,11 @@ describe('generateSequence — troncature', () => {
   it('retourne le plus long chemin disponible parmi des composantes disjointes', () => {
     const graph = buildGraph(twoComponents);
 
+    // Idem : seule la composante a1 -> a2 -> a3 atteint la longueur demandée.
     const result = generateSequence(graph, {
       knownNodeIds: allIds(twoComponents),
       targetLength: 3,
+      maxAttempts: 300,
     });
 
     expect(result.sequence).toEqual(['a1', 'a2', 'a3']);
@@ -225,16 +231,41 @@ describe('generateSequence — cas limites', () => {
     expect(result.truncated).toBe(true);
   });
 
-  it('tolère un maxAttempts absurde', () => {
+  it('ramène un maxAttempts nul ou négatif à une seule tentative', () => {
     const graph = buildGraph(chain);
 
-    const result = generateSequence(graph, {
-      knownNodeIds: allIds(chain),
-      targetLength: 2,
-      maxAttempts: 0,
-    });
+    // Départ imposé : la tentative unique devient déterministe, ce qui permet
+    // d'asserter la séquence exacte sans dépendre du tirage du point de départ.
+    for (const maxAttempts of [0, -5]) {
+      const result = generateSequence(graph, {
+        knownNodeIds: allIds(chain),
+        targetLength: 2,
+        startNodeId: 'c1',
+        maxAttempts,
+      });
 
-    expect(result.achievedLength).toBe(2);
+      expect(result.sequence).toEqual(['c1', 'c2']);
+      expect(result.truncated).toBe(false);
+    }
+  });
+
+  it('reste valide avec une tentative unique et un départ tiré au sort', () => {
+    const graph = buildGraph(chain);
+
+    // Une seule marche peut démarrer sur un cul-de-sac : le résultat est alors
+    // légitimement plus court que demandé. Seuls les invariants sont garantis.
+    for (let i = 0; i < 30; i += 1) {
+      const result = generateSequence(graph, {
+        knownNodeIds: allIds(chain),
+        targetLength: 4,
+        maxAttempts: 1,
+      });
+
+      expect(result.achievedLength).toBeGreaterThanOrEqual(1);
+      expect(result.achievedLength).toBeLessThanOrEqual(4);
+      expect(result.truncated).toBe(result.achievedLength < 4);
+      expectValidPath(graph, result.sequence, allIds(chain));
+    }
   });
 });
 
