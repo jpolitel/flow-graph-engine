@@ -143,7 +143,14 @@ flow-graph-engine/
 
 - Workflow `ci.yml` : sur chaque push/PR → `npm ci`, `npm run lint`, `npm test`, `npm run build`.
 - Publication npm : déclenchée sur un tag `vX.Y.Z` (semver strict), job séparé qui build
-  puis `npm publish` avec un `NPM_TOKEN` en secret de dépôt.
+  puis publie via le **Trusted Publishing (OIDC)** — aucun secret, aucun `NPM_TOKEN`.
+  npm ayant restreint les tokens « bypass 2FA » en août 2026 (ils perdent le droit de
+  publier directement), c'est désormais la seule voie viable pour un CI.
+  Contraintes : `permissions: id-token: write` dans le job, npm >= 11.5.1 (Node 22 embarque
+  npm 10.9, d'où l'étape de mise à jour de npm), et une configuration côté npmjs.com sur
+  la page du paquet : *Settings* → *Trusted publisher* → dépôt `jpolitel/flow-graph-engine`
+  + fichier de workflow `publish.yml`.
+  La provenance est générée automatiquement, sans passer `--provenance`.
 - Pas de déploiement, c'est une lib pure — la CI sert uniquement de garde-fou qualité +
   publication.
 
