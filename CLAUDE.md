@@ -22,7 +22,9 @@ l'app consommatrice, pas ici.
 - **TypeScript pur**, compilé en CommonJS + ESM (double build) pour compat large.
 - Aucune dépendance à React Native, Node-only APIs interdites (le package doit pouvoir
   tourner dans un moteur JS mobile comme dans Node pour les tests).
-- Package **installable via npm** (`npm install flow-graph-engine` une fois publié).
+- Package **installable via npm** sous le nom scopé `@syncopelab/flow-graph-engine`
+  (le dépôt garde le nom `flow-graph-engine`). Le scope nécessite `--access public` à la
+  publication, déjà présent dans le workflow.
 - Node.js LTS pour le dev (aligné sur tes autres projets) — voir `.nvmrc` (Node 22),
   Node 18 minimum.
 - Tests : Jest.

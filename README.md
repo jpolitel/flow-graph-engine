@@ -10,7 +10,7 @@ vos nœuds.
 ## Installation
 
 ```bash
-npm install flow-graph-engine
+npm install @syncopelab/flow-graph-engine
 ```
 
 Package TypeScript, double build CommonJS + ESM, sans aucune dépendance runtime. Aucune API
@@ -19,7 +19,7 @@ Node-only : utilisable en Node comme dans un moteur JS mobile (React Native / He
 ## Utilisation
 
 ```typescript
-import { buildGraph, generateSequence } from 'flow-graph-engine';
+import { buildGraph, generateSequence } from '@syncopelab/flow-graph-engine';
 
 const graph = buildGraph([
   { id: 'a', tags: ['doux'], predecessors: [], successors: ['b', 'c'] },
