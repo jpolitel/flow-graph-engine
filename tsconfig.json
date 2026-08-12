@@ -1,0 +1,25 @@
+{
+  // Configuration de référence : vérification de types et IDE.
+  // `nodenext` reflète la résolution réelle du package publié ; c'est aussi la
+  // seule option non dépréciée pour un paquet CommonJS (`node10` disparaît en TS 7).
+  "compilerOptions": {
+    "target": "ES2020",
+    "lib": ["ES2020"],
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "strict": true,
+    "noImplicitAny": true,
+    "noImplicitOverride": true,
+    "noUncheckedIndexedAccess": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    // Explicite : TS 6 n'inclut plus automatiquement les paquets `@types`.
+    "types": ["jest", "node"],
+    "noEmit": true
+  },
+  "include": ["src/**/*.ts", "tests/**/*.ts"]
+}

@@ -1,0 +1,50 @@
+name: Publication npm
+
+# Déclenché par un tag semver, ex. : git tag v0.1.0 && git push origin v0.1.0
+on:
+  push:
+    tags: ['v[0-9]+.[0-9]+.[0-9]+']
+
+jobs:
+  publish:
+    name: Build et publication
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      id-token: write # provenance npm
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      - name: Installation des dépendances
+        run: npm ci
+
+      - name: Cohérence entre le tag et la version du package
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          PKG="$(node -p "require('./package.json').version")"
+          if [ "$TAG" != "$PKG" ]; then
+            echo "Le tag ($TAG) ne correspond pas à la version du package ($PKG)." >&2
+            exit 1
+          fi
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Tests
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Publication
+        run: npm publish --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
