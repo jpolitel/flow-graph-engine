@@ -24,6 +24,9 @@ au [Semantic Versioning](https://semver.org/lang/fr/).
 - Filtrage du sous-graphe par `knownNodeIds` et par `requiredTags` (sémantique « au moins un
   tag en commun »).
 - Double build CommonJS + ESM avec déclarations de types, sans dépendance runtime.
+- Sourcemaps autonomes (`inlineSources`) : les sources TypeScript sont embarquées dans les
+  `.map`, `src/` n'étant pas publié. Les stack traces des applications consommatrices
+  remontent ainsi au TypeScript d'origine.
 - Couverture des cas limites : graphe vide, nœud unique, nœud isolé, cycle simple,
   composantes disjointes, filtre excluant tous les nœuds, longueur nulle ou négative.
 

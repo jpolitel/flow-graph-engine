@@ -8,7 +8,10 @@
     // Les sources publiées n'utilisent aucun type de test.
     "types": [],
     "declaration": false,
-    "sourceMap": true
+    "sourceMap": true,
+    // `src/` n'est pas publié : sans les sources embarquées, les maps
+    // pointeraient vers des fichiers absents du paquet.
+    "inlineSources": true
   },
   "include": ["src/**/*.ts"]
 }
