@@ -1,0 +1,14 @@
+{
+  // Build CommonJS. `module: nodenext` émet du CJS car le package.json racine
+  // ne déclare pas `"type": "module"`.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "dist/cjs",
+    "noEmit": false,
+    // Les sources publiées n'utilisent aucun type de test.
+    "types": [],
+    "declaration": false,
+    "sourceMap": true
+  },
+  "include": ["src/**/*.ts"]
+}

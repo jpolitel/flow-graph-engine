@@ -1,0 +1,65 @@
+{
+  "name": "flow-graph-engine",
+  "version": "0.1.0",
+  "description": "Moteur générique de génération de séquences via parcours de graphe orienté.",
+  "license": "MIT",
+  "author": "jpolitel",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jpolitel/flow-graph-engine.git"
+  },
+  "keywords": [
+    "graph",
+    "sequence",
+    "generator",
+    "random-walk",
+    "typescript"
+  ],
+  "main": "./dist/cjs/index.js",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/types/index.d.ts",
+      "import": "./dist/esm/index.js",
+      "require": "./dist/cjs/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "clean": "rimraf dist",
+    "build": "npm run clean && npm run build:cjs && npm run build:esm && npm run build:types && node scripts/write-dist-manifests.mjs",
+    "build:cjs": "tsc -p tsconfig.cjs.json",
+    "build:esm": "tsc -p tsconfig.esm.json",
+    "build:types": "tsc -p tsconfig.types.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint . && prettier --check .",
+    "lint:fix": "eslint . --fix && prettier --write .",
+    "test": "jest",
+    "test:coverage": "jest --coverage",
+    "prepublishOnly": "npm run lint && npm test && npm run build"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.13.0",
+    "@types/jest": "^29.5.14",
+    "@types/node": "^20.17.6",
+    "eslint": "^9.13.0",
+    "eslint-config-prettier": "^9.1.0",
+    "jest": "^29.7.0",
+    "prettier": "^3.3.3",
+    "rimraf": "^5.0.10",
+    "ts-jest": "^29.2.5",
+    "typescript": "^5.6.3",
+    "typescript-eslint": "^8.12.2"
+  }
+}

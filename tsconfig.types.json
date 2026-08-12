@@ -1,0 +1,13 @@
+{
+  // Déclarations de types, partagées par les deux formats de build.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "dist/types",
+    "noEmit": false,
+    // Les sources publiées n'utilisent aucun type de test.
+    "types": [],
+    "declaration": true,
+    "emitDeclarationOnly": true
+  },
+  "include": ["src/**/*.ts"]
+}
