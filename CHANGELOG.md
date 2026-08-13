@@ -7,6 +7,14 @@ au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Non publié]
 
+## [0.1.1] — 2026-08-13
+
+### Modifié
+
+- Publication npm par Trusted Publishing (OIDC) au lieu d'un `NPM_TOKEN` en secret de
+  dépôt. Changement d'infrastructure uniquement : le contenu du paquet est identique à
+  celui de la 0.1.0.
+
 ## [0.1.0] — 2026-08-12
 
 ### Ajouté

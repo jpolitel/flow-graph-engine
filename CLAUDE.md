@@ -168,7 +168,10 @@ flow-graph-engine/
 - **v0.1 — fait.** `buildGraph` + `generateSequence` (marche aléatoire pondérée avec
   backtracking borné), `getMaxReachableLength` et `findDanglingReferences` livrés en avance
   sur le plan initial. 40 tests, double build CJS/ESM vérifié par smoke test, CI en place.
-  Reste à publier sur npm (nécessite un `NPM_TOKEN` en secret de dépôt).
+  Publié sur npm le 12/08/2026 sous `@syncopelab/flow-graph-engine`, avec attestations de
+  provenance.
+- **v0.1.1 — fait.** Aucun changement de code : première publication par le Trusted
+  Publishing OIDC mis en place après la 0.1.0, qui n'avait jamais été exercé.
 - v0.2 : meilleure gestion des sous-graphes déconnectés (aujourd'hui on retient la meilleure
   composante par tirages successifs, sans énumération explicite des composantes), et
   transformation de `getMaxReachableLength` en borne exacte sur les petits graphes.
