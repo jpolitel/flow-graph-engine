@@ -143,7 +143,14 @@ flow-graph-engine/
 
 - Workflow `ci.yml` : sur chaque push/PR → `npm ci`, `npm run lint`, `npm test`, `npm run build`.
 - Publication npm : déclenchée sur un tag `vX.Y.Z` (semver strict), job séparé qui build
-  puis `npm publish` avec un `NPM_TOKEN` en secret de dépôt.
+  puis publie via le **Trusted Publishing (OIDC)** — aucun secret, aucun `NPM_TOKEN`.
+  npm ayant restreint les tokens « bypass 2FA » en août 2026 (ils perdent le droit de
+  publier directement), c'est désormais la seule voie viable pour un CI.
+  Contraintes : `permissions: id-token: write` dans le job, npm >= 11.5.1 (Node 22 embarque
+  npm 10.9, d'où l'étape de mise à jour de npm), et une configuration côté npmjs.com sur
+  la page du paquet : *Settings* → *Trusted publisher* → dépôt `jpolitel/flow-graph-engine`
+  + fichier de workflow `publish.yml`.
+  La provenance est générée automatiquement, sans passer `--provenance`.
 - Pas de déploiement, c'est une lib pure — la CI sert uniquement de garde-fou qualité +
   publication.
 
@@ -161,7 +168,10 @@ flow-graph-engine/
 - **v0.1 — fait.** `buildGraph` + `generateSequence` (marche aléatoire pondérée avec
   backtracking borné), `getMaxReachableLength` et `findDanglingReferences` livrés en avance
   sur le plan initial. 40 tests, double build CJS/ESM vérifié par smoke test, CI en place.
-  Reste à publier sur npm (nécessite un `NPM_TOKEN` en secret de dépôt).
+  Publié sur npm le 12/08/2026 sous `@syncopelab/flow-graph-engine`, avec attestations de
+  provenance.
+- **v0.1.1 — fait.** Aucun changement de code : première publication par le Trusted
+  Publishing OIDC mis en place après la 0.1.0, qui n'avait jamais été exercé.
 - v0.2 : meilleure gestion des sous-graphes déconnectés (aujourd'hui on retient la meilleure
   composante par tirages successifs, sans énumération explicite des composantes), et
   transformation de `getMaxReachableLength` en borne exacte sur les petits graphes.
