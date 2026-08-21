@@ -1,3 +1,4 @@
+import { createRandom } from './random.js';
 import type { Graph, GenerationOptions, GenerationResult } from './types.js';
 
 /** Nombre de marches aléatoires tentées par défaut. */
@@ -54,6 +55,45 @@ function buildSubgraph(
   return { ids, successors };
 }
 
+/** Poids d'entrée invalide ou absent : ignoré. Poids négatif : ramené à 0. */
+function sanitizeWeight(value: number | undefined): number {
+  if (value === undefined || !Number.isFinite(value)) return 1;
+  return value < 0 ? 0 : value;
+}
+
+/**
+ * Poids déclaré par l'appelant pour un nœud : produit des poids de ses tags et
+ * de son poids direct. Vaut 1 partout en l'absence de pondération.
+ */
+function buildDeclaredWeight(
+  graph: Graph,
+  nodeWeights: Record<string, number> | undefined,
+  tagWeights: Record<string, number> | undefined,
+): (id: string) => number {
+  const weightedTags = tagWeights && Object.keys(tagWeights).length > 0;
+  const weightedNodes = nodeWeights && Object.keys(nodeWeights).length > 0;
+  if (!weightedTags && !weightedNodes) return () => 1;
+
+  // Le poids d'un nœud ne dépend que des options : on le calcule une fois, quel
+  // que soit le nombre de tirages où il réapparaît.
+  const cache = new Map<string, number>();
+
+  return (id: string): number => {
+    const known = cache.get(id);
+    if (known !== undefined) return known;
+
+    let weight = sanitizeWeight(nodeWeights?.[id]);
+    if (weightedTags) {
+      for (const tag of graph.nodes.get(id)?.tags ?? []) {
+        weight *= sanitizeWeight(tagWeights?.[tag]);
+      }
+    }
+
+    cache.set(id, weight);
+    return weight;
+  };
+}
+
 /** Tire un élément au hasard, proportionnellement à son poids (poids > 0). */
 function pickWeighted<T>(
   items: T[],
@@ -68,7 +108,12 @@ function pickWeighted<T>(
 
   let threshold = random() * total;
   for (const item of items) {
-    threshold -= weightOf(item);
+    const weight = weightOf(item);
+    // Un poids nul n'est jamais tiré ici : il ne subsiste que par le repli
+    // ci-dessus, quand plus aucun candidat n'a de poids. C'est ce qui fait
+    // d'un poids nul un « dernier recours » et non une exclusion.
+    if (weight <= 0) continue;
+    threshold -= weight;
     if (threshold <= 0) return item;
   }
   return items[items.length - 1];
@@ -100,10 +145,12 @@ function walk(
   startId: string,
   targetLength: number,
   random: () => number,
+  declaredWeightOf: (id: string) => number,
 ): string[] {
   const degreeOf = (id: string): number => (subgraph.successors.get(id) ?? []).length;
   // +1 pour laisser une chance aux culs-de-sac, qui restent des fins valides.
-  const weightOf = (id: string): number => degreeOf(id) + 1;
+  // La pondération de l'appelant module ce poids structurel sans le remplacer.
+  const weightOf = (id: string): number => (degreeOf(id) + 1) * declaredWeightOf(id);
 
   interface Frame {
     id: string;
@@ -165,6 +212,7 @@ function search(
   startNodeId: string | undefined,
   maxAttempts: number,
   random: () => number,
+  declaredWeightOf: (id: string) => number,
 ): string[] {
   if (targetLength <= 0 || subgraph.ids.length === 0) return [];
   if (startNodeId !== undefined && !subgraph.successors.has(startNodeId)) return [];
@@ -172,7 +220,7 @@ function search(
   const degreeOf = (id: string): number => (subgraph.successors.get(id) ?? []).length;
   // Un nœud très sortant est un meilleur point de départ : on lui donne du poids,
   // sans jamais exclure les autres.
-  const startWeightOf = (id: string): number => degreeOf(id) + 1;
+  const startWeightOf = (id: string): number => (degreeOf(id) + 1) * declaredWeightOf(id);
 
   let best: string[] = [];
   for (
@@ -184,11 +232,16 @@ function search(
       startNodeId ?? pickWeighted(subgraph.ids, startWeightOf, random) ?? subgraph.ids[0];
     if (start === undefined) break;
 
-    const path = walk(subgraph, start, targetLength, random);
+    const path = walk(subgraph, start, targetLength, random, declaredWeightOf);
     if (path.length > best.length) best = path;
   }
 
   return best.slice(0, targetLength);
+}
+
+/** `Math.random` par défaut, suite reproductible dès qu'une graine est fournie. */
+function randomSource(seed: number | string | undefined): () => number {
+  return seed === undefined ? Math.random : createRandom(seed);
 }
 
 /**
@@ -196,6 +249,8 @@ function search(
  *
  * Ne lève jamais d'exception : si le sous-graphe ne permet pas d'atteindre
  * `targetLength`, le meilleur chemin trouvé est retourné avec `truncated: true`.
+ *
+ * Aléatoire par défaut ; reproductible dès que `options.seed` est fournie.
  */
 export function generateSequence(
   graph: Graph,
@@ -213,7 +268,8 @@ export function generateSequence(
     requestedLength,
     options.startNodeId,
     maxAttempts,
-    Math.random,
+    randomSource(options.seed),
+    buildDeclaredWeight(graph, options.nodeWeights, options.tagWeights),
   );
 
   return {
@@ -246,6 +302,7 @@ export function getMaxReachableLength(
     subgraph.ids.length,
     options.startNodeId,
     maxAttempts,
-    Math.random,
+    randomSource(options.seed),
+    buildDeclaredWeight(graph, options.nodeWeights, options.tagWeights),
   ).length;
 }

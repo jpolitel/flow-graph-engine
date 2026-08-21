@@ -60,11 +60,51 @@ Produit un **chemin simple** (aucun nœud répété) dans le sous-graphe induit 
 | `targetLength` | Longueur souhaitée. `<= 0` produit une séquence vide.                             |
 | `startNodeId`  | Départ imposé. Hors du sous-graphe, le résultat est vide.                         |
 | `maxAttempts`  | Nombre de marches aléatoires tentées (défaut : 50). La meilleure est retenue.     |
+| `seed`         | Graine. À graine égale, séquence identique. Absente : `Math.random`.              |
+| `nodeWeights`  | Poids par nœud, appliqués aux tirages. Défaut : `1`.                              |
+| `tagWeights`   | Poids par tag, multipliés entre eux puis par le poids du nœud.                    |
 
 **La fonction ne lève jamais d'exception.** Si le sous-graphe ne permet pas d'atteindre
 `targetLength` (cul-de-sac, composantes trop petites, filtre trop restrictif), le meilleur
 chemin trouvé est retourné avec `truncated: true` et `achievedLength` réel — c'est à
 l'application d'en informer l'utilisateur.
+
+#### Reproductibilité
+
+Sans `seed`, la génération tire sur `Math.random` et n'est pas reproductible. Avec une
+graine, même graphe et mêmes options donnent toujours la même séquence : de quoi tester une
+sortie exacte côté application, plutôt que de se limiter à des invariants.
+
+```typescript
+const options = { knownNodeIds: ids, targetLength: 4, seed: 'test-1' };
+generateSequence(graph, options); // ⟵ identique à chaque appel
+```
+
+La graine accepte un nombre ou une chaîne, hachés de la même façon : `7` et `'7'` produisent
+donc la même suite. Le générateur (mulberry32) est interne et n'est pas exposé.
+
+#### Pondération
+
+`nodeWeights` et `tagWeights` modulent deux tirages : le choix du point de départ et celui
+du successeur suivant. Ils **multiplient** le poids structurel (fondé sur le degré sortant),
+sans le remplacer.
+
+```typescript
+generateSequence(graph, {
+  knownNodeIds: ids,
+  targetLength: 5,
+  tagWeights: { doux: 3, intense: 0.5 }, // trois fois plus de « doux »
+  nodeWeights: { x9: 0 }, // x9 en dernier recours seulement
+});
+```
+
+Les poids des tags portés par un même nœud sont multipliés entre eux, puis par le poids du
+nœud : un nœud cumulant deux préférences cumule les deux facteurs.
+
+> Un poids **ne filtre pas** — c'est le rôle de `requiredTags`. Un poids nul relègue le nœud
+> en dernier recours sans jamais l'exclure : s'il est le seul passage vers un chemin de la
+> longueur demandée, il est emprunté. Un poids négatif est ramené à `0`, une valeur non
+> finie est ignorée.
 
 ### `getMaxReachableLength(graph, options): number`
 
@@ -85,7 +125,8 @@ Marche aléatoire pondérée avec backtracking borné :
 
 - le sous-graphe induit est construit à partir des nœuds autorisés et du filtre de tags ;
 - `maxAttempts` marches indépendantes sont lancées, chacune depuis un départ tiré au sort
-  (pondéré par le degré sortant), et on retient le meilleur chemin ;
+  (pondéré par le degré sortant, modulé par `nodeWeights` et `tagWeights`), et on retient le
+  meilleur chemin ;
 - chaque marche est un DFS aléatoire dont le backtracking est borné en nombre d'expansions,
   afin de garder un temps de réponse constant même sur un graphe dense ;
 - la recherche s'arrête dès que `targetLength` est atteinte.

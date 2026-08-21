@@ -54,6 +54,9 @@ interface GenerationOptions {
   targetLength: number; // longueur souhaitée (via le curseur côté app)
   startNodeId?: string; // optionnel, sinon départ aléatoire pondéré
   maxAttempts?: number; // nb de tentatives de recherche (défaut raisonnable)
+  seed?: number | string; // graine : génération reproductible (0.2)
+  nodeWeights?: Record<string, number>; // poids par nœud, défaut 1 (0.2)
+  tagWeights?: Record<string, number>; // poids par tag, multipliés entre eux (0.2)
 }
 
 interface GenerationResult {
@@ -119,6 +122,20 @@ backtracking, pondération) reste privée.
 - `requiredTags` retient un nœud dès qu'il porte **au moins un** des tags demandés
   (sémantique « mélanger ces catégories »). Liste vide ou absente = pas de filtre.
 
+### Règles de pondération (décidées en 0.2)
+
+- Les poids **multiplient** le poids structurel (degré sortant + 1), ils ne le remplacent
+  pas : la pondération de l'appelant infléchit la marche sans casser la préférence pour les
+  nœuds qui ouvrent le plus de chemins.
+- Les poids des tags portés par un même nœud se multiplient entre eux, puis par son
+  `nodeWeights`. Un nœud cumulant deux préférences cumule les deux facteurs.
+- Un poids **ne filtre pas** : `requiredTags` reste le seul mécanisme d'exclusion. Un poids
+  nul relègue en dernier recours, sans jamais rendre un nœud inatteignable.
+- Poids négatif ramené à `0`, valeur non finie ignorée : même philosophie que le reste du
+  moteur, aucune donnée imparfaite ne doit provoquer d'exception.
+- Le générateur pseudo-aléatoire reste **interne** (`src/random.ts`, mulberry32) : `seed`
+  suffit à l'appelant, exposer le générateur élargirait l'API sans besoin identifié.
+
 ## 6. Structure de dossier
 
 ```
@@ -172,21 +189,31 @@ flow-graph-engine/
   provenance.
 - **v0.1.1 — fait.** Aucun changement de code : première publication par le Trusted
   Publishing OIDC mis en place après la 0.1.0, qui n'avait jamais été exercé.
-- v0.2 : meilleure gestion des sous-graphes déconnectés (aujourd'hui on retient la meilleure
+- **v0.2.0 — fait.** Génération reproductible par `seed`, et pondération configurable
+  (`nodeWeights`, `tagWeights`). Ces deux chantiers, initialement planifiés en « v0.3 », sont
+  passés devant : sans tirage reproductible, aucune amélioration heuristique de la génération
+  n'est mesurable, et les tests des applications consommatrices restaient cantonnés aux
+  invariants. Les numéros de version suivent l'ordre de publication, la roadmap a donc été
+  renumérotée plutôt que de sauter une version.
+- v0.3 : meilleure gestion des sous-graphes déconnectés (aujourd'hui on retient la meilleure
   composante par tirages successifs, sans énumération explicite des composantes), et
   transformation de `getMaxReachableLength` en borne exacte sur les petits graphes.
-- v0.3+ : pondération configurable (poids par tag, par nœud), stratégies de génération
-  alternatives (déterministe/seedable pour les tests de l'app consommatrice).
+- v0.4+ : stratégies de génération alternatives (parcours déterministe complet sur les
+  petits graphes, où l'exhaustivité reste abordable).
 
 ## 10. État du dépôt
 
-- Sources : `src/types.ts`, `src/graph.ts`, `src/generate.ts`, `src/index.ts`.
-- Tests : `tests/graph.test.ts`, `tests/generate.test.ts`, fixtures dans
-  `tests/fixtures/graphs.ts`. Seuils de couverture appliqués par Jest.
+- Sources : `src/types.ts`, `src/graph.ts`, `src/generate.ts`, `src/random.ts`,
+  `src/index.ts`.
+- Tests : `tests/graph.test.ts`, `tests/generate.test.ts`, `tests/random.test.ts`, fixtures
+  dans `tests/fixtures/graphs.ts`. Seuils de couverture appliqués par Jest.
 - Les tests de génération vérifient des **invariants** (chemin simple valide, longueurs,
-  troncature) plutôt que des séquences exactes, puisque la génération repose sur
+  troncature) plutôt que des séquences exactes, puisque la génération repose par défaut sur
   `Math.random`. Les assertions d'égalité stricte ne portent que sur les graphes où une
-  seule solution existe. Une stratégie seedable (v0.3) permettra des tests déterministes.
+  seule solution existe, ou sur des pondérations qui ne laissent qu'un candidat crédible.
+- Les tests de graine assertent la **reproductibilité** (deux appels identiques donnent le
+  même résultat), jamais une sortie littérale attendue pour une graine donnée : figer une
+  sortie exacte reviendrait à figer l'algorithme, que la roadmap prévoit de faire évoluer.
 - CI : `.github/workflows/ci.yml` (lint, typecheck, tests, build sur Node 20 et 22) et
   `.github/workflows/publish.yml` (publication npm sur tag `vX.Y.Z`, avec vérification de
   cohérence entre le tag et la version du `package.json`).

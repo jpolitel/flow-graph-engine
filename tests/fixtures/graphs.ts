@@ -49,6 +49,16 @@ export const tagged: GraphNode[] = [
   node('t4', { tags: ['intense'] }),
 ];
 
+/**
+ * Nœuds portant plusieurs étiquettes, pour vérifier la composition des poids :
+ * m1(doux, lent) -> m2(doux, rapide) et m1 -> m3(intense, lent).
+ */
+export const multiTagged: GraphNode[] = [
+  node('m1', { tags: ['doux', 'lent'], successors: ['m2', 'm3'] }),
+  node('m2', { tags: ['doux', 'rapide'] }),
+  node('m3', { tags: ['intense', 'lent'] }),
+];
+
 /** Graphe dense : chaque nœud pointe vers tous les autres. */
 export const dense: GraphNode[] = ['d1', 'd2', 'd3', 'd4', 'd5'].map((id, _index, all) =>
   node(id, { successors: all.filter((other) => other !== id) }),
