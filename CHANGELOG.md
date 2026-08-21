@@ -7,6 +7,33 @@ au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Non publié]
 
+## [0.2.0] — 2026-08-21
+
+### Ajouté
+
+- `seed` dans `GenerationOptions` : à graine, graphe et options identiques,
+  `generateSequence` et `getMaxReachableLength` produisent toujours le même résultat. Les
+  applications consommatrices peuvent ainsi tester des séquences exactes au lieu de se
+  limiter à des invariants. Nombre ou chaîne, hachés de la même façon. Sans graine, le
+  comportement est inchangé (`Math.random`).
+- `nodeWeights` et `tagWeights` dans `GenerationOptions` : pondération du tirage du point de
+  départ et du choix du successeur. Les poids **multiplient** le poids structurel issu du
+  degré sortant, sans le remplacer ; les poids des tags d'un même nœud se multiplient entre
+  eux, puis par le poids du nœud.
+
+### Modifié
+
+- Un candidat de poids nul n'est plus jamais tiré tant qu'un candidat de poids strictement
+  positif subsiste. Un poids nul devient donc un « dernier recours » exact — le nœud reste
+  empruntable s'il est le seul passage possible. Auparavant, un résidu de calcul en virgule
+  flottante pouvait le sélectionner avec une probabilité de l'ordre de 2⁻³².
+
+### Notes
+
+- Un poids ne filtre pas : `requiredTags` reste le seul mécanisme d'exclusion.
+- Le générateur pseudo-aléatoire (mulberry32, sans dépendance) est interne et volontairement
+  absent de l'API publique.
+
 ## [0.1.1] — 2026-08-13
 
 ### Modifié

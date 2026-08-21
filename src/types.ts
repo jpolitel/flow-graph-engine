@@ -47,6 +47,32 @@ export interface GenerationOptions {
   startNodeId?: string;
   /** Nombre de marches aléatoires tentées avant de retenir la meilleure. */
   maxAttempts?: number;
+  /**
+   * Graine de la source pseudo-aléatoire. À graine égale, mêmes options et même
+   * graphe, la séquence produite est identique — de quoi écrire des tests sur
+   * des séquences exactes côté application. Absente, la génération utilise
+   * `Math.random` et n'est pas reproductible.
+   */
+  seed?: number | string;
+  /**
+   * Poids par nœud, appliqués au tirage du point de départ et au choix du
+   * successeur suivant. Valeur par défaut : `1`. Voir {@link tagWeights} pour
+   * les règles de composition et de validation.
+   */
+  nodeWeights?: Record<string, number>;
+  /**
+   * Poids par tag, appliqués aux mêmes tirages que {@link nodeWeights}.
+   *
+   * Composition : les poids des tags portés par un nœud sont **multipliés**
+   * entre eux, puis par le poids du nœud. Un nœud portant deux tags valorisés
+   * cumule donc les deux préférences.
+   *
+   * Ces poids ne filtrent rien — c'est le rôle de {@link requiredTags} : un
+   * poids nul relègue le nœud en dernier recours sans jamais l'exclure d'un
+   * chemin où il est le seul passage possible. Un poids négatif est ramené à
+   * `0`, une valeur non finie est ignorée.
+   */
+  tagWeights?: Record<string, number>;
 }
 
 /** Résultat d'une génération. Jamais d'exception : au pire une séquence vide. */
