@@ -74,11 +74,21 @@ interface GenerationResult {
   backtracking borné** (pas de recherche exhaustive du plus long chemin — NP-difficile en
   général — mais plusieurs tentatives randomisées avec `maxAttempts`, on garde le meilleur
   résultat trouvé).
+- Le sous-graphe est découpé en **composantes faiblement connexes** (0.3). Leur taille
+  majore la longueur des chemins qu'elles contiennent : celles qui ne peuvent plus dépasser
+  le meilleur chemin trouvé sont écartées, et la recherche s'arrête quand il n'en reste
+  aucune. C'est cet invariant, et non une heuristique, qui autorise l'élagage.
+- Si les marches échouent à atteindre `targetLength`, les composantes d'au plus 14 nœuds
+  sont explorées **exhaustivement**, sous budget d'expansions borné (0.3). L'ordre de
+  parcours y est tiré au sort : sans cela, la garantie de trouver un chemin existant se
+  paierait d'une séquence toujours identique — ce qui, pour une app de génération, serait
+  une régression fonctionnelle, pas une amélioration.
 - **Ne jamais planter en cas de cul-de-sac ou de sous-graphe trop petit** : retourner le
   meilleur chemin trouvé avec `truncated: true` et `achievedLength` réel. C'est à l'app
   consommatrice d'afficher le message ("longueur max avec tes figures : N").
 - Fonction dédiée `getMaxReachableLength(subgraph, options)` que l'app peut appeler pour
-  afficher une borne avant génération si besoin (optionnel, pas bloquant pour le MVP).
+  afficher une borne avant génération. Exacte sur les composantes explorées exhaustivement,
+  minorante au-delà.
 - Cas limites à couvrir explicitement dans les tests : graphe vide, un seul nœud, nœud
   isolé (pas de successeur), cycle simple, sous-graphe déconnecté (composantes multiples),
   `knownNodeIds` filtrant tout le graphe.
@@ -195,11 +205,13 @@ flow-graph-engine/
   n'est mesurable, et les tests des applications consommatrices restaient cantonnés aux
   invariants. Les numéros de version suivent l'ordre de publication, la roadmap a donc été
   renumérotée plutôt que de sauter une version.
-- v0.3 : meilleure gestion des sous-graphes déconnectés (aujourd'hui on retient la meilleure
-  composante par tirages successifs, sans énumération explicite des composantes), et
-  transformation de `getMaxReachableLength` en borne exacte sur les petits graphes.
-- v0.4+ : stratégies de génération alternatives (parcours déterministe complet sur les
-  petits graphes, où l'exhaustivité reste abordable).
+- **v0.3.0 — fait.** Découpage explicite en composantes faiblement connexes, avec élagage
+  de celles qui ne peuvent plus faire mieux (leur taille majore la longueur des chemins
+  qu'elles contiennent), et exploration exhaustive des composantes d'au plus 14 nœuds quand
+  les marches échouent. `getMaxReachableLength` devient exact sur ces composantes.
+- v0.4+ : rien de tranché. Pistes ouvertes — exposer au consommateur si la borne retournée
+  est exacte ou seulement minorante, rendre les seuils d'exhaustivité configurables, ou
+  contraindre la génération (nœud d'arrivée imposé, tags interdits).
 
 ## 10. État du dépôt
 
@@ -214,6 +226,10 @@ flow-graph-engine/
 - Les tests de graine assertent la **reproductibilité** (deux appels identiques donnent le
   même résultat), jamais une sortie littérale attendue pour une graine donnée : figer une
   sortie exacte reviendrait à figer l'algorithme, que la roadmap prévoit de faire évoluer.
+- Les fixtures `trap` et `twinPaths` existent pour éprouver l'exhaustivité : un départ tiré
+  au sort y tombe presque toujours sur un cul-de-sac, si bien qu'un test à `maxAttempts: 1`
+  échoue sans elle et réussit avec. Vérifié en rejouant les tests contre l'implémentation
+  précédente — un test qui passe dans les deux cas ne prouve rien.
 - CI : `.github/workflows/ci.yml` (lint, typecheck, tests, build sur Node 20 et 22) et
   `.github/workflows/publish.yml` (publication npm sur tag `vX.Y.Z`, avec vérification de
   cohérence entre le tag et la version du `package.json`).

@@ -1,6 +1,6 @@
 {
   "name": "@syncopelab/flow-graph-engine",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Moteur générique de génération de séquences via parcours de graphe orienté.",
   "license": "MIT",
   "author": "jpolitel",

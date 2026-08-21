@@ -11,6 +11,21 @@ const DEFAULT_MAX_ATTEMPTS = 50;
  */
 const EXPANSION_BUDGET = 2000;
 
+/**
+ * Taille maximale d'une composante soumise à l'exploration exhaustive. Au-delà,
+ * le nombre de chemins simples rend l'exhaustivité hors de portée quoi qu'il
+ * arrive, et seules les marches aléatoires restent praticables.
+ */
+const EXACT_MAX_NODES = 14;
+
+/**
+ * Budget d'expansions de l'exploration exhaustive. C'est lui, et non la seule
+ * taille de la composante, qui décide en dernier ressort : une composante de 14
+ * nœuds peu reliée se prouve, la même densément reliée épuise le budget et
+ * bascule sur l'heuristique.
+ */
+const EXACT_EXPANSION_BUDGET = 50000;
+
 /** Sous-graphe induit par les nœuds autorisés. */
 interface Subgraph {
   ids: string[];
@@ -53,6 +68,58 @@ function buildSubgraph(
   }
 
   return { ids, successors };
+}
+
+/**
+ * Composantes faiblement connexes du sous-graphe, ordonnées par taille
+ * décroissante.
+ *
+ * La connexité est calculée en ignorant le sens des arêtes : un chemin peut
+ * entrer dans la composante par n'importe lequel de ses nœuds. La taille d'une
+ * composante **majore** donc la longueur des chemins simples qu'elle contient,
+ * ce qui permet d'écarter d'emblée celles qui ne peuvent plus rien apporter.
+ */
+function componentsOf(subgraph: Subgraph): string[][] {
+  const neighbours = new Map<string, string[]>();
+  const link = (from: string, to: string): void => {
+    const known = neighbours.get(from);
+    if (known) known.push(to);
+    else neighbours.set(from, [to]);
+  };
+
+  for (const [id, out] of subgraph.successors) {
+    for (const next of out) {
+      link(id, next);
+      link(next, id);
+    }
+  }
+
+  const seen = new Set<string>();
+  const components: string[][] = [];
+
+  // Parcours dans l'ordre stable du sous-graphe : à graphe égal, découpage égal.
+  for (const id of subgraph.ids) {
+    if (seen.has(id)) continue;
+
+    const component: string[] = [];
+    const queue = [id];
+    seen.add(id);
+
+    while (queue.length > 0) {
+      const current = queue.pop() as string;
+      component.push(current);
+      for (const next of neighbours.get(current) ?? []) {
+        if (seen.has(next)) continue;
+        seen.add(next);
+        queue.push(next);
+      }
+    }
+
+    components.push(component);
+  }
+
+  // `sort` est stable : à tailles égales, l'ordre de découverte est conservé.
+  return components.sort((a, b) => b.length - a.length);
 }
 
 /** Poids d'entrée invalide ou absent : ignoré. Poids négatif : ramené à 0. */
@@ -205,6 +272,71 @@ function walk(
   return best;
 }
 
+/**
+ * Plus long chemin simple d'une composante, par exploration exhaustive.
+ *
+ * L'ordre de parcours est **tiré au sort** (mêmes poids que les marches) : sur
+ * une composante où plusieurs chemins atteignent `targetLength`, l'exploration
+ * s'arrête au premier trouvé, qui varie donc d'un appel à l'autre. C'est ce qui
+ * permet d'utiliser l'exhaustivité sans figer la séquence produite.
+ *
+ * L'exploration s'arrête avant terme si le budget d'expansions est épuisé, ou
+ * dès que `targetLength` est atteinte : le chemin retourné est alors un minorant
+ * et non un optimum prouvé. L'appelant n'a pas à faire la différence — il
+ * conserve simplement le plus long chemin qu'il a vu.
+ */
+function exactLongestPath(
+  subgraph: Subgraph,
+  component: string[],
+  startNodeId: string | undefined,
+  targetLength: number,
+  random: () => number,
+  weightOf: (id: string) => number,
+): string[] {
+  const visited = new Set<string>();
+  const path: string[] = [];
+  let best: string[] = [];
+  let budget = EXACT_EXPANSION_BUDGET;
+  let exhausted = false;
+
+  const explore = (id: string): void => {
+    if (budget <= 0) {
+      exhausted = true;
+      return;
+    }
+    budget -= 1;
+
+    visited.add(id);
+    path.push(id);
+    if (path.length > best.length) best = [...path];
+
+    if (best.length < targetLength) {
+      const candidates = (subgraph.successors.get(id) ?? []).filter(
+        (next) => !visited.has(next),
+      );
+      for (const next of weightedShuffle(candidates, weightOf, random)) {
+        explore(next);
+        if (exhausted || best.length >= targetLength) break;
+      }
+    }
+
+    path.pop();
+    visited.delete(id);
+  };
+
+  const starts =
+    startNodeId !== undefined
+      ? [startNodeId]
+      : weightedShuffle(component, weightOf, random);
+
+  for (const start of starts) {
+    explore(start);
+    if (exhausted || best.length >= targetLength) break;
+  }
+
+  return best;
+}
+
 /** Cœur commun à `generateSequence` et `getMaxReachableLength`. */
 function search(
   subgraph: Subgraph,
@@ -222,18 +354,58 @@ function search(
   // sans jamais exclure les autres.
   const startWeightOf = (id: string): number => (degreeOf(id) + 1) * declaredWeightOf(id);
 
+  const components = componentsOf(subgraph);
+  // Départ imposé : seule sa composante peut produire quoi que ce soit.
+  const reachable =
+    startNodeId !== undefined
+      ? components.filter((component) => component.includes(startNodeId))
+      : components;
+
   let best: string[] = [];
+  /**
+   * Nœuds encore susceptibles d'améliorer le résultat. Une composante dont la
+   * taille ne dépasse pas le meilleur chemin déjà trouvé ne peut rien apporter :
+   * l'écarter évite d'y gaspiller des tentatives, et vide le vivier — donc
+   * arrête la recherche — dès qu'aucune composante ne peut plus faire mieux.
+   */
+  const viable = (): string[] =>
+    reachable.filter((component) => component.length > best.length).flat();
+
+  let pool = viable();
   for (
     let attempt = 0;
-    attempt < maxAttempts && best.length < targetLength;
+    attempt < maxAttempts && best.length < targetLength && pool.length > 0;
     attempt += 1
   ) {
-    const start =
-      startNodeId ?? pickWeighted(subgraph.ids, startWeightOf, random) ?? subgraph.ids[0];
+    const start = startNodeId ?? pickWeighted(pool, startWeightOf, random) ?? pool[0];
     if (start === undefined) break;
 
     const path = walk(subgraph, start, targetLength, random, declaredWeightOf);
-    if (path.length > best.length) best = path;
+    if (path.length > best.length) {
+      best = path;
+      pool = viable();
+    }
+  }
+
+  // Les marches sont bornées : elles peuvent manquer un chemin qui existe. Sur
+  // une composante assez petite pour être épuisée, l'exploration exhaustive
+  // tranche — au prix d'un budget lui aussi borné.
+  if (best.length < targetLength) {
+    for (const component of reachable) {
+      if (component.length <= best.length) break;
+      if (component.length > EXACT_MAX_NODES) continue;
+
+      const exact = exactLongestPath(
+        subgraph,
+        component,
+        startNodeId,
+        targetLength,
+        random,
+        startWeightOf,
+      );
+      if (exact.length > best.length) best = exact;
+      if (best.length >= targetLength) break;
+    }
   }
 
   return best.slice(0, targetLength);
