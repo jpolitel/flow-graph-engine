@@ -7,6 +7,38 @@ au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Non publié]
 
+## [0.3.0] — 2026-08-21
+
+### Ajouté
+
+- Découpage explicite du sous-graphe en composantes faiblement connexes. La taille d'une
+  composante majorant la longueur des chemins qu'elle contient, celles qui ne peuvent plus
+  dépasser le meilleur chemin trouvé sont écartées : les tentatives ne sont plus dispersées
+  sur des composantes sans espoir, et la recherche s'arrête dès qu'aucune ne peut faire
+  mieux.
+- Exploration exhaustive des composantes d'au plus 14 nœuds, sous budget d'expansions borné,
+  lorsque les marches aléatoires n'ont pas atteint la longueur demandée. L'ordre de parcours
+  est tiré au sort : la garantie ne se paie pas d'une séquence figée, et une graine reste
+  reproductible.
+
+### Modifié
+
+- `getMaxReachableLength` renvoie désormais une borne **exacte** sur les sous-graphes assez
+  petits pour être explorés entièrement, au lieu d'un minorant systématique. Au-delà, le
+  comportement heuristique est inchangé. La valeur ne peut que croître à graphe égal : le
+  contrat « la génération ne dépasse jamais la borne » est préservé.
+- `generateSequence` atteint la longueur demandée dans des cas où les marches échouaient,
+  typiquement un graphe où les points de départ tirés au sort mènent surtout à des
+  culs-de-sac. À `maxAttempts: 1` sur un tel graphe, le résultat passe d'aléatoire à fiable.
+
+### Notes
+
+- L'exhaustivité est décidée par un budget d'expansions autant que par le nombre de nœuds :
+  une composante de 14 nœuds peu reliée se prouve, la même densément reliée bascule sur
+  l'heuristique.
+- Aucun changement d'API : les deux améliorations sont internes à `generateSequence` et
+  `getMaxReachableLength`.
+
 ## [0.2.0] — 2026-08-21
 
 ### Ajouté

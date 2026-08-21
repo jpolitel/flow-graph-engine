@@ -5,9 +5,13 @@ import {
   cycle,
   dense,
   isolated,
+  largeDense,
   multiTagged,
   node,
+  scattered,
   tagged,
+  trap,
+  twinPaths,
   twoComponents,
 } from './fixtures/graphs';
 
@@ -573,6 +577,102 @@ describe('generateSequence — pondération', () => {
   });
 });
 
+describe('generateSequence — composantes et exhaustivité', () => {
+  it('trouve le chemin long malgré une tentative unique et des culs-de-sac', () => {
+    const graph = buildGraph(trap);
+
+    // Une seule marche part le plus souvent d'un cul-de-sac. Sans exploration
+    // exhaustive de la composante, ce test serait instable par construction.
+    for (let i = 0; i < 30; i += 1) {
+      const result = generateSequence(graph, {
+        knownNodeIds: allIds(trap),
+        targetLength: 5,
+        maxAttempts: 1,
+      });
+
+      expect(result.sequence).toEqual(['h', 'p1', 'p2', 'p3', 'p4']);
+      expect(result.truncated).toBe(false);
+    }
+  });
+
+  it('atteint la meilleure composante même en une seule tentative', () => {
+    const graph = buildGraph(twoComponents);
+
+    for (let i = 0; i < 30; i += 1) {
+      const result = generateSequence(graph, {
+        knownNodeIds: allIds(twoComponents),
+        targetLength: 3,
+        maxAttempts: 1,
+      });
+
+      expect(result.sequence).toEqual(['a1', 'a2', 'a3']);
+    }
+  });
+
+  it('ne fige pas la séquence quand plusieurs chemins optimaux existent', () => {
+    const graph = buildGraph(twinPaths);
+
+    const produced = new Set<string>();
+    for (let i = 0; i < 60; i += 1) {
+      const result = generateSequence(graph, {
+        knownNodeIds: allIds(twinPaths),
+        targetLength: 4,
+        maxAttempts: 1,
+      });
+
+      expect(result.achievedLength).toBe(4);
+      expectValidPath(graph, result.sequence, allIds(twinPaths));
+      produced.add(result.sequence.join());
+    }
+
+    // L'ordre de parcours de l'exploration exhaustive est tiré au sort : les
+    // deux branches doivent apparaître.
+    expect(produced).toContain('h,a1,a2,a3');
+    expect(produced).toContain('h,b1,b2,b3');
+  });
+
+  it('reste reproductible sous graine malgré l’exploration exhaustive', () => {
+    const graph = buildGraph(twinPaths);
+    const options = {
+      knownNodeIds: allIds(twinPaths),
+      targetLength: 4,
+      maxAttempts: 1,
+      seed: 'exhaustif',
+    };
+
+    const reference = generateSequence(graph, options).sequence;
+    for (let i = 0; i < 10; i += 1) {
+      expect(generateSequence(graph, options).sequence).toEqual(reference);
+    }
+  });
+
+  it('reste heuristique sur une composante trop grande, sans échouer', () => {
+    const graph = buildGraph(largeDense);
+
+    // 20 nœuds : au-delà du seuil d'exhaustivité. Le graphe étant dense, les
+    // marches suffisent à parcourir tous les nœuds.
+    const result = generateSequence(graph, {
+      knownNodeIds: allIds(largeDense),
+      targetLength: 20,
+    });
+
+    expect(result.achievedLength).toBe(20);
+    expectValidPath(graph, result.sequence, allIds(largeDense));
+  });
+
+  it('gère un sous-graphe entièrement fait de nœuds isolés', () => {
+    const graph = buildGraph(scattered);
+
+    const result = generateSequence(graph, {
+      knownNodeIds: allIds(scattered),
+      targetLength: 2,
+    });
+
+    expect(result.achievedLength).toBe(1);
+    expect(result.truncated).toBe(true);
+  });
+});
+
 describe('getMaxReachableLength', () => {
   it('retourne la longueur de la chaîne complète', () => {
     expect(
@@ -621,5 +721,63 @@ describe('getMaxReachableLength', () => {
     expect(
       getMaxReachableLength(buildGraph([node('seul')]), { knownNodeIds: ['autre'] }),
     ).toBe(0);
+  });
+
+  it('donne la borne exacte sur une composante piégeuse, sans dépendre du tirage', () => {
+    const graph = buildGraph(trap);
+
+    // Le plus long chemin vaut 5 et part de `h` : une borne obtenue par simples
+    // marches serait fluctuante avec une tentative unique.
+    for (let i = 0; i < 30; i += 1) {
+      expect(
+        getMaxReachableLength(graph, { knownNodeIds: allIds(trap), maxAttempts: 1 }),
+      ).toBe(5);
+    }
+  });
+
+  it('retient la plus grande composante et non la première rencontrée', () => {
+    // b1 -> b2 est déclarée avant la composante longue : la borne ne doit pas
+    // dépendre de l'ordre de déclaration.
+    const graph = buildGraph([
+      node('b1', { successors: ['b2'] }),
+      node('b2'),
+      node('a1', { successors: ['a2'] }),
+      node('a2', { successors: ['a3'] }),
+      node('a3'),
+    ]);
+
+    expect(
+      getMaxReachableLength(graph, {
+        knownNodeIds: ['b1', 'b2', 'a1', 'a2', 'a3'],
+        maxAttempts: 1,
+      }),
+    ).toBe(3);
+  });
+
+  it('retourne 1 sur un sous-graphe de nœuds isolés', () => {
+    expect(
+      getMaxReachableLength(buildGraph(scattered), { knownNodeIds: allIds(scattered) }),
+    ).toBe(1);
+  });
+
+  it('se limite à la composante du départ imposé', () => {
+    const graph = buildGraph(trap);
+
+    // Depuis un cul-de-sac, aucune arête sortante : la borne vaut 1, alors que
+    // la composante entière permet 5.
+    expect(
+      getMaxReachableLength(graph, {
+        knownNodeIds: allIds(trap),
+        startNodeId: 'dead3',
+      }),
+    ).toBe(1);
+  });
+
+  it('reste exploitable sur une composante trop grande pour l’exhaustivité', () => {
+    expect(
+      getMaxReachableLength(buildGraph(largeDense), {
+        knownNodeIds: allIds(largeDense),
+      }),
+    ).toBe(20);
   });
 });

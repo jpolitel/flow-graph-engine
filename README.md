@@ -111,8 +111,13 @@ nœud : un nœud cumulant deux préférences cumule les deux facteurs.
 Longueur maximale atteignable dans le sous-graphe autorisé, pour afficher une borne avant
 génération.
 
-> Valeur **heuristique** : un minorant obtenu par les mêmes marches aléatoires, pas
-> l'optimum exact — la recherche du plus long chemin est NP-difficile.
+La recherche procède composante par composante, de la plus grande à la plus petite, et
+s'arrête dès qu'une composante ne peut plus dépasser le meilleur chemin déjà trouvé — sa
+taille majorant la longueur des chemins qu'elle contient.
+
+> **Exacte** sur les composantes assez petites pour être explorées entièrement (jusqu'à 14
+> nœuds, et sous réserve d'un budget d'expansions). Au-delà, la valeur retombe sur un
+> minorant obtenu par marches aléatoires : la recherche du plus long chemin est NP-difficile.
 
 ### `findDanglingReferences(nodes): { nodeId, field, missingId }[]`
 
@@ -131,7 +136,20 @@ Marche aléatoire pondérée avec backtracking borné :
   afin de garder un temps de réponse constant même sur un graphe dense ;
 - la recherche s'arrête dès que `targetLength` est atteinte.
 
-Ce n'est délibérément **pas** une recherche exhaustive du plus long chemin.
+### Composantes
+
+Le sous-graphe est découpé en composantes faiblement connexes. La taille d'une composante
+majore la longueur des chemins simples qu'elle contient : celles qui ne peuvent plus
+dépasser le meilleur chemin déjà trouvé sont écartées, ce qui évite d'y gaspiller des
+tentatives et permet d'arrêter la recherche dès qu'aucune ne peut faire mieux.
+
+Si les marches n'atteignent pas `targetLength`, les composantes assez petites (≤ 14 nœuds)
+sont explorées **exhaustivement**, sous budget d'expansions borné. L'ordre de parcours de
+cette exploration est lui aussi tiré au sort : la garantie de trouver un chemin qui existe
+ne se paie donc pas d'une séquence figée, et une graine reste reproductible.
+
+Ce n'est délibérément **pas** une recherche exhaustive du plus long chemin sur les grands
+graphes.
 
 ## Développement
 
